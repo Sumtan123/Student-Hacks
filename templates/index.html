@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Question Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="quiz-container">
+        <h1 class="quiz-title">🎯 Ultimate Quiz Generator 🎯</h1>
+        <textarea id="input-text" class="quiz-input" rows="5" placeholder="Paste your paragraph here..."></textarea>
+        <button class="quiz-btn generate-btn" onclick="generateQuestions()">Generate Questions 🚀</button>
+
+        <div id="output" class="quiz-output"></div>
+        <button id="submit-btn" class="quiz-btn submit-btn" onclick="submitAnswers()" style="display:none;">Submit Answers 📤</button>
+        
+        <div id="result" class="quiz-result"></div>
+    </div>
+
+    <script>
+        let questionsData = [];
+        let userAnswers = {};
+
+        async function generateQuestions() {
+            const textInput = document.getElementById('input-text').value.trim();
+            if (!textInput) {
+                alert('Please enter a paragraph.');
+                return;
+            }
+
+            const response = await fetch('/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: textInput })
+            });
+
+            const questions = await response.json();
+            questionsData = questions;
+            const outputDiv = document.getElementById('output');
+            outputDiv.innerHTML = '';
+
+            if (questions.length === 0) {
+                outputDiv.textContent = 'No questions were generated. Try a different input.';
+                return;
+            }
+
+            questions.forEach((q, index) => {
+                const questionBlock = document.createElement('div');
+                questionBlock.className = 'question-block';
+
+                const questionElem = document.createElement('h3');
+                questionElem.className = 'question-title';
+                questionElem.textContent = `Q${index + 1}: ${q.question}`;
+                questionBlock.appendChild(questionElem);
+
+                q.options.forEach((option, idx) => {
+                    const optionElem = document.createElement('div');
+                    optionElem.className = 'option';
+                    optionElem.innerHTML = `
+                        <input type="radio" id="q${index}-option${idx}" name="question-${index}" value="${option}" 
+                               onclick="recordAnswer(${index}, '${option}')">
+                        <label for="q${index}-option${idx}" class="option-label">${option}</label>`;
+                    questionBlock.appendChild(optionElem);
+                });
+
+                outputDiv.appendChild(questionBlock);
+            });
+
+            document.getElementById('submit-btn').style.display = 'block';
+        }
+
+        function recordAnswer(questionIndex, answer) {
+            userAnswers[questionIndex] = answer.trim().toLowerCase();
+        }
+
+        async function submitAnswers() {
+            const correctAnswers = {};
+            questionsData.forEach((q, index) => {
+                correctAnswers[index] = q.answer.trim().toLowerCase();
+            });
+
+            const response = await fetch('/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userAnswers, correctAnswers })
+            });
+
+            const result = await response.json();
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="score"><span>Your Score:</span> ${result.score}/${result.total}</div>`;
+
+            result.results.forEach((res, idx) => {
+                const resultElem = document.createElement('div');
+                resultElem.className = `result-item ${res.is_correct ? 'correct' : 'incorrect'}`;
+                resultElem.innerHTML = `
+                    <p class="result-text"><strong>Question ${idx + 1}:</strong> 
+                    ${res.is_correct ? "✅ Correct" : "❌ Incorrect"}
+                    <br>User Answer: ${res.user_answer}
+                    <br>Correct Answer: ${res.correct_answer}</p>`;
+                resultDiv.appendChild(resultElem);
+            });
+        }
+    </script>
+</body>
+</html>
